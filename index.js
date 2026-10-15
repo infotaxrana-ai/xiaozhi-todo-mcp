@@ -1,24 +1,36 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import http from "http";
 
+// === Render Web Service Port Binding ===
+const PORT = process.env.PORT || 10000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Xiaozhi Todo MCP Server is Live!");
+}).listen(PORT, () => {
+  console.log(`HTTP Health check server running on port ${PORT}`);
+});
+
+// === MCP Server Setup ===
 const server = new Server(
   { name: "xiaozhi-todo-mcp", version: "1.0.0" }, 
   { capabilities: { tools: {} } }
 );
 
-// ধাপ ২: লোকাল অ্যারে (রিমাইন্ডার জমা রাখার অস্থায়ী মেমোরি খাতা)
+// লোকাল অ্যারে (রিমাইন্ডার জমা রাখার মেমোরি খাতা)
 let remindersList = [];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: "add_reminder",
-      description: "নির্দিষ্ট সময় উল্লেখ করে নতুন কোনো টু-ডু বা রিমাইন্ডার যোগ করার টুল।",
+      description: "নির্দিষ্ট সময় উল্লেখ করে নতুন কোনো টু-ডু বা রিমাইন্ডার যোগ করার টুল।",
       inputSchema: {
         type: "object",
         properties: {
-          task: { type: "string", description: "কাজের নাম (যেমন: চা খাওয়া, বাজারে যাওয়া)" },
+          task: { type: "string", description: "কাজের নাম (যেমন: চা খাওয়া, বাজারে যাওয়া)" },
           minutesFromNow: { type: "number", description: "এখন থেকে কত মিনিট পর মনে করাতে হবে (যেমন: 10, 30)" }
         },
         required: ["task", "minutesFromNow"]
@@ -49,31 +61,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
     
     remindersList.push(newReminder);
-    return { content: [{ type: "text", text: `ঠিক আছে রাজ ভাই, আমি মেমোরিতে লিখে রাখলাম। ${minutes} মিনিট পর আপনাকে "${task}" এর কথা মনে করিয়ে দেব।` }] };
+    return { content: [{ type: "text", text: `ঠিক আছে রানা ভাই, আমি মেমোরিতে লিখে রাখলাম। ${minutes} মিনিট পর আপনাকে "${task}" এর কথা মনে করিয়ে দেব।` }] };
   }
 
   // ২. রিমাইন্ডার লিস্ট দেখার লজিক
   if (name === "list_reminders") {
     if (remindersList.length === 0) {
-      return { content: [{ type: "text", text: "রাজ ভাই, আপনার টু-ডু তালিকায় এই মুহূর্তে কোনো রিমাইন্ডার জমা নেই।" }] };
+      return { content: [{ type: "text", text: "রানা ভাই, আপনার টু-ডু তালিকায় এই মুহূর্তে কোনো রিমাইন্ডার জমা নেই।" }] };
     }
     
     const activeTasks = remindersList
-      .map(r => `- ${r.task} (সময়: ${r.time.toLocaleTimeString('bn-BD')})`)
+      .filter(r => r.active)
+      .map(r => `- ${r.task} (সময়: ${new Date(r.time).toLocaleTimeString('bn-BD')})`)
       .join("\n");
       
+    if (!activeTasks) {
+      return { content: [{ type: "text", text: "রানা ভাই, এই মুহূর্তে সক্রিয় কোনো রিমাইন্ডার নেই।" }] };
+    }
+
     return { content: [{ type: "text", text: `আপনার বর্তমান টু-ডু তালিকা:\n${activeTasks}` }] };
   }
 });
 
-// ব্যাকগ্রাউন্ড টাইমার লুপ (প্রতি মিনিটে চেক করবে রিমাইন্ডারের সময় হয়েছে কি না)
+// ব্যাকগ্রাউন্ড টাইমার লুপ (প্রতি মিনিটে চেক করবে রিমাইন্ডারের সময় হয়েছে কি না)
 setInterval(() => {
   const now = new Date();
   remindersList.forEach(reminder => {
     if (reminder.active && now >= reminder.time) {
-      reminder.active = false; // একবার রিমাইন্ডার দিলে সেটি নিষ্ক্রিয় করে দেবে
-      console.log(`[ALERT] রাজ ভাই, আপনার সময় হয়ে গেছে! এখন আপনাকে "${reminder.task}" করতে হবে।`);
-      // এখানে XiaoZhi স্পিকারে স্বয়ংক্রিয়ভাবে অডিও পুশ নোটিফিকেশন সিগন্যাল চলে যাবে
+      reminder.active = false; // একবার রিমাইন্ডার দিলে সেটি নিষ্ক্রিয় করে দেবে
+      console.log(`[ALERT] রানা ভাই, আপনার সময় হয়ে গেছে! এখন আপনাকে "${reminder.task}" করতে হবে।`);
+      // এখানে XiaoZhi স্পিকারে স্বয়ংক্রিয়ভাবে অডিও পুশ নোটিফিকেশন সিগন্যাল চলে যাবে
     }
   });
 }, 60000);
